@@ -29,8 +29,6 @@ func (w *wizard) stats(showTranscoder bool) {
 
 	table := tablewriter.NewWriter(os.Stdout)
 	data := [][]string{
-		[]string{"Node ID", w.getNodeID()},
-		[]string{"Node Addr", w.getNodeAddr()},
 		[]string{"HTTP Port", w.httpPort},
 		[]string{"Controller Address", addrMap["Controller"].Hex()},
 		[]string{"LivepeerToken Address", addrMap["LivepeerToken"].Hex()},
@@ -258,14 +256,6 @@ func (w *wizard) delegatorStats() {
 	table.SetRowLine(true)
 	table.SetColumnSeparator("|")
 	table.Render()
-}
-
-func (w *wizard) getNodeID() string {
-	return httpGet(fmt.Sprintf("http://%v:%v/nodeID", w.host, w.httpPort))
-}
-
-func (w *wizard) getNodeAddr() string {
-	return httpGet(fmt.Sprintf("http://%v:%v/nodeAddrs", w.host, w.httpPort))
 }
 
 func (w *wizard) getProtocolParameters() (lpTypes.ProtocolParameters, error) {

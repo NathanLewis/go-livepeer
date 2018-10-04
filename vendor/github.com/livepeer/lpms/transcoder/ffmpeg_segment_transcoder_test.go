@@ -25,7 +25,6 @@ func TestTrans(t *testing.T) {
 	ffmpeg.InitFFmpeg()
 	tr := NewFFMpegSegmentTranscoder(configs, "./")
 	r, err := tr.Transcode("test.ts")
-	ffmpeg.DeinitFFmpeg()
 	if err != nil {
 		t.Errorf("Error transcoding: %v", err)
 	}
@@ -51,7 +50,7 @@ func TestTrans(t *testing.T) {
 	}
 }
 
-func TestTooManyProfiles(t *testing.T) {
+func TestInvalidProfiles(t *testing.T) {
 
 	// 11 profiles; max 10
 	configs := []ffmpeg.VideoProfile{
@@ -70,11 +69,18 @@ func TestTooManyProfiles(t *testing.T) {
 	ffmpeg.InitFFmpeg()
 	tr := NewFFMpegSegmentTranscoder(configs, "./")
 	_, err := tr.Transcode("test.ts")
-	ffmpeg.DeinitFFmpeg()
 	if err == nil {
 		t.Errorf("Expected an error transcoding too many segments")
 	} else if err.Error() != "Invalid argument" {
 		t.Errorf("Did not get the expected error while transcoding: %v", err)
+	}
+
+	// no profiles
+	configs = []ffmpeg.VideoProfile{}
+	tr = NewFFMpegSegmentTranscoder(configs, "./")
+	_, err = tr.Transcode("test.ts")
+	if err != nil {
+		t.Error(err)
 	}
 }
 
@@ -97,7 +103,6 @@ func NewStreamTest(t *testing.T, configs []ffmpeg.VideoProfile) (*StreamTest, er
 
 func (s *StreamTest) Close() {
 	os.RemoveAll(s.Tempdir)
-	ffmpeg.DeinitFFmpeg()
 }
 
 func (s *StreamTest) CmdCompareSize(cmd string, sz int) error {
@@ -148,7 +153,6 @@ func TestInvalidFile(t *testing.T) {
 	}
 	tr := NewFFMpegSegmentTranscoder(configs, "./")
 	ffmpeg.InitFFmpeg()
-	defer ffmpeg.DeinitFFmpeg()
 
 	// nonexistent file
 	_, err := tr.Transcode("nothere.ts")

@@ -13,32 +13,33 @@ import (
 )
 
 type StubClient struct {
-	StrmID            string
-	TOpts             string
-	MaxPrice          *big.Int
-	Jid               *big.Int
-	SegSeqNum         *big.Int
-	VeriRate          uint64
-	DStorageHash      string
-	DHash             [32]byte
-	TDHash            [32]byte
-	BSig              []byte
-	Proof             []byte
-	VerifyCounter     int
-	ClaimJid          []*big.Int
-	ClaimStart        []*big.Int
-	ClaimEnd          []*big.Int
-	ClaimRoot         map[[32]byte]bool
-	ClaimCounter      int
-	SubLogsCh         chan types.Log
-	JobsMap           map[string]*lpTypes.Job
-	TranscoderAddress common.Address
-	BlockNum          *big.Int
-	BlockHashToReturn common.Hash
-	Claims            map[int]*lpTypes.Claim
-	LatestBlockError  error
-	JobError          error
-	WatchJobError     error
+	StrmID                       string
+	TOpts                        string
+	MaxPrice                     *big.Int
+	Jid                          *big.Int
+	SegSeqNum                    *big.Int
+	VeriRate                     uint64
+	DStorageHash                 string
+	DHash                        [32]byte
+	TDHash                       [32]byte
+	BSig                         []byte
+	Proof                        []byte
+	VerifyCounter                int
+	ClaimJid                     []*big.Int
+	ClaimStart                   []*big.Int
+	ClaimEnd                     []*big.Int
+	ClaimRoot                    map[[32]byte]bool
+	ClaimCounter                 int
+	SubLogsCh                    chan types.Log
+	JobsMap                      map[string]*lpTypes.Job
+	TranscoderAddress            common.Address
+	BlockNum                     *big.Int
+	BlockHashToReturn            common.Hash
+	Claims                       map[int]*lpTypes.Claim
+	LatestBlockError             error
+	JobError                     error
+	WatchJobError                error
+	ProcessHistoricalUnbondError error
 }
 
 func (e *StubClient) Setup(password string, gasLimit uint64, gasPrice *big.Int) error { return nil }
@@ -144,7 +145,7 @@ func (c *StubClient) BroadcasterDeposit(broadcaster common.Address) (*big.Int, e
 	return big.NewInt(10), nil
 }
 func (e *StubClient) GetJob(jobID *big.Int) (*lpTypes.Job, error) {
-	return nil, nil
+	return e.JobsMap[jobID.String()], nil
 }
 func (c *StubClient) GetClaim(jobID *big.Int, claimID *big.Int) (*lpTypes.Claim, error) {
 	return c.Claims[int(claimID.Int64())], nil
@@ -183,8 +184,14 @@ func (c *StubClient) SetGasInfo(uint64, *big.Int) error { return nil }
 func (c *StubClient) WatchForJob(j string) (*lpTypes.Job, error) {
 	return c.JobsMap[j], c.WatchJobError
 }
-func (c *StubClient) ProcessHistoricalUnbond(*big.Int, func(*contracts.BondingManagerUnbond) error) error {
+func (c *StubClient) ProcessHistoricalNewJob(*big.Int, bool, func(*contracts.JobsManagerNewJob) error) error {
 	return nil
+}
+func (c *StubClient) WatchForNewJob(bool, chan *contracts.JobsManagerNewJob) (ethereum.Subscription, error) {
+	return nil, nil
+}
+func (c *StubClient) ProcessHistoricalUnbond(*big.Int, func(*contracts.BondingManagerUnbond) error) error {
+	return c.ProcessHistoricalUnbondError
 }
 func (c *StubClient) WatchForUnbond(chan *contracts.BondingManagerUnbond) (ethereum.Subscription, error) {
 	return nil, nil

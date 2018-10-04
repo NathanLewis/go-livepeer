@@ -12,27 +12,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-func dbPath(t *testing.T) string {
-	return fmt.Sprintf("file:%s?mode=memory&cache=shared&_foreign_keys=1", t.Name())
-}
-
-func tempDB(t *testing.T) (*DB, *sql.DB, error) {
-	dbpath := dbPath(t)
-	dbh, err := InitDB(dbpath)
-	if err != nil {
-		t.Error("Unable to initialize DB ", err)
-		return nil, nil, err
-	}
-	raw, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		t.Error("Unable to open raw sqlite db ", err)
-		return nil, nil, err
-	}
-	return dbh, raw, nil
-}
-
 func TestDBLastSeenBlock(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	if err != nil {
 		return
 	}
@@ -89,7 +70,7 @@ func TestDBLastSeenBlock(t *testing.T) {
 }
 
 func TestDBVersion(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	if err != nil {
 		return
 	}
@@ -147,7 +128,7 @@ func profilesMatch(j1 []ffmpeg.VideoProfile, j2 []ffmpeg.VideoProfile) bool {
 }
 
 func TestDBJobs(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	defer dbh.Close()
 	defer dbraw.Close()
 	j := NewStubJob()
@@ -177,10 +158,43 @@ func TestDBJobs(t *testing.T) {
 	if err != nil || len(jobs) != 2 {
 		t.Error("Unexpected error in active jobs ", err, len(jobs))
 	}
+
+	// test getting a job
+	dbjob, err := dbh.GetJob(j.ID)
+	if err != nil {
+		t.Error("Unexpected error when fetching job ", err)
+	}
+	if dbjob.ID != j.ID || dbjob.StopReason.String != "insufficient lolz" ||
+		!profilesMatch(dbjob.profiles, j.profiles) ||
+		dbjob.Transcoder != j.Transcoder ||
+		dbjob.broadcaster != j.broadcaster ||
+		dbjob.startBlock != j.startBlock || dbjob.endBlock != j.endBlock {
+		t.Error("Job mismatch ")
+	}
+	// should be a nonexistent job
+	dbjob, err = dbh.GetJob(100)
+	if err != sql.ErrNoRows {
+		t.Error("Missing error or unexpected error", err)
+	}
+	// job with a null stop reason
+	dbjob, err = dbh.GetJob(1)
+	if err != nil {
+		t.Error("Unexpected error ", err)
+	}
+	if dbjob.StopReason.Valid {
+		t.Error("Unexpected stop reason ", dbjob.StopReason.String)
+	}
+
+	// should have an invalid profile
+	dbraw.Exec("UPDATE jobs SET transcodeOptions = 'invalid' WHERE id = 1")
+	_, err = dbh.GetJob(1)
+	if err != ErrProfile {
+		t.Error("Unexpected result from invalid profile ", err)
+	}
 }
 
 func TestDBReceipts(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	defer dbh.Close()
 	defer dbraw.Close()
 	jid := big.NewInt(0)
@@ -270,7 +284,7 @@ func TestDBReceipts(t *testing.T) {
 }
 
 func TestDBClaims(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	defer dbh.Close()
 	defer dbraw.Close()
 
@@ -341,7 +355,7 @@ func TestDBClaims(t *testing.T) {
 		return
 	}
 	// Sanity check number of claims
-	var nbclaims int
+	var nbclaims int64
 	row = dbraw.QueryRow("SELECT count(*) FROM claims")
 	err = row.Scan(&nbclaims)
 	if err != nil {
@@ -378,10 +392,29 @@ func TestDBClaims(t *testing.T) {
 		t.Errorf("Unexpected: error %v, got %v but wanted %v", err, status, s)
 		return
 	}
+
+	// Check count claims for a given job
+	nbclaims, err = dbh.CountClaims(big.NewInt(0))
+	if err != nil || nbclaims != 2 {
+		t.Errorf("Unexpected number of claims; expected 2 got %v; error %v", nbclaims, err)
+		return
+	}
+	// Check count claims for a nonexistent job
+	nbclaims, err = dbh.CountClaims(big.NewInt(-1))
+	if err != nil || nbclaims != 0 {
+		t.Errorf("Unexpected number of claims; expected 0 got %v; error %v", nbclaims, err)
+	}
+	// Check count claims for a job with no claims
+	job.ID++
+	dbh.InsertJob(job)
+	nbclaims, err = dbh.CountClaims(big.NewInt(job.ID))
+	if err != nil || nbclaims != 0 {
+		t.Errorf("Unexpected number of claims; expected 0 got %v; error %v", nbclaims, err)
+	}
 }
 
 func TestDBUnbondingLocks(t *testing.T) {
-	dbh, dbraw, err := tempDB(t)
+	dbh, dbraw, err := TempDB(t)
 	defer dbh.Close()
 	defer dbraw.Close()
 	if err != nil {
